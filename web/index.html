@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>corn-job · 定时任务</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.mjs"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">◈</span><span>corn-job</span><span class="brand-divider"></span><span class="brand-subtitle">任务控制台</span></div>
+        <div class="connection"><span class="connection-dot" id="connection-dot"></span><span id="connection-label">正在连接</span></div>
+      </header>
+
+      <main class="main">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">TASK OPERATIONS / 本地环境</p>
+            <h1>定时任务</h1>
+            <p class="hero-copy">管理 Cron 与单次延时任务，查看每次执行的结果。</p>
+          </div>
+          <button class="button button-primary hero-action" id="new-task" type="button"><span aria-hidden="true">＋</span> 新建任务</button>
+        </section>
+
+        <section class="stats" aria-label="任务概览">
+          <div class="stat"><span>任务总数</span><strong id="stat-total">—</strong></div>
+          <div class="stat"><span>运行中</span><strong id="stat-active">—</strong></div>
+          <div class="stat"><span>已暂停</span><strong id="stat-paused">—</strong></div>
+          <div class="stat"><span>Worker 运行中</span><strong id="stat-workers">—</strong></div>
+        </section>
+
+        <section class="workspace">
+          <div class="workspace-head">
+            <nav class="tabs" aria-label="页面切换">
+              <button type="button" class="tab active" data-tab="tasks" aria-selected="true">任务定义</button>
+              <button type="button" class="tab" data-tab="executions" aria-selected="false">执行记录</button>
+            </nav>
+            <button type="button" class="button button-subtle" id="refresh">↻ <span>刷新</span></button>
+          </div>
+
+          <div id="tasks-panel" class="panel">
+            <div class="panel-intro"><div><h2>任务定义</h2><p>发布任务后，运行中的 Worker 会按调度计划执行。</p></div><span class="count" id="task-count">0 个任务</span></div>
+            <div class="table-wrap" id="tasks-table"><table><thead><tr><th>任务</th><th>调度</th><th>状态</th><th>Worker</th><th>最近更新</th><th class="actions-head">操作</th></tr></thead><tbody id="task-rows"></tbody></table></div>
+            <div class="empty" id="tasks-empty" hidden><span class="empty-icon">◷</span><strong>还没有任务</strong><p>创建一个任务，试试手动执行或定时调度。</p><button type="button" class="button button-primary" id="empty-new-task">新建任务</button></div>
+          </div>
+
+          <div id="executions-panel" class="panel" hidden>
+            <div class="panel-intro"><div><h2>执行记录</h2><p>查看任务结果、失败原因和执行时间。</p></div></div>
+            <div class="filters">
+              <label>任务 <select id="execution-task"><option value="">全部任务</option></select></label>
+              <label>状态 <select id="execution-status"><option value="">全部状态</option><option>RUNNING</option><option>RETRYING</option><option>SUCCEEDED</option><option>FAILED</option><option>CANCELED</option></select></label>
+              <span id="execution-total" class="filter-count">0 条记录</span>
+            </div>
+            <div class="table-wrap" id="executions-table"><table><thead><tr><th>执行 ID</th><th>任务</th><th>状态</th><th>开始时间</th><th>结束时间</th><th>操作</th></tr></thead><tbody id="execution-rows"></tbody></table></div>
+            <div class="empty" id="executions-empty" hidden><span class="empty-icon">☰</span><strong>没有执行记录</strong><p>运行任务后，结果会显示在这里。</p></div>
+            <div class="pager"><button type="button" class="button button-subtle" id="prev-page">上一页</button><span id="page-label">第 1 页</span><button type="button" class="button button-subtle" id="next-page">下一页</button></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="task-dialog" class="dialog">
+      <form id="task-form" novalidate>
+        <div class="dialog-head"><div><p class="eyebrow">TASK DEFINITION</p><h2 id="dialog-title">新建任务</h2></div><button type="button" class="icon-button" id="close-dialog" aria-label="关闭">×</button></div>
+        <div class="dialog-body">
+          <label class="field">任务名称 <input id="task-name" name="name" required maxlength="128" placeholder="例如：每日对账" /></label>
+          <label class="field">说明 <input id="task-description" name="description" maxlength="500" placeholder="可选" /></label>
+          <div class="field-row"><label class="field">调度类型 <select id="task-schedule" name="schedule_type"><option value="CRON">Cron 周期执行</option><option value="DELAYED">单次延时执行</option></select></label><label class="field" id="cron-field">Cron 表达式 <input id="task-cron" name="cron_expression" value="* * * * *" placeholder="* * * * *" /></label><label class="field" id="delayed-field" hidden>执行时间 <input id="task-execute-at" name="execute_at" type="datetime-local" /></label></div>
+          <div class="field-row" id="timezone-row"><label class="field">时区 <input id="task-timezone" name="timezone" value="Asia/Shanghai" placeholder="Asia/Shanghai" /></label><p class="field-hint">支持五段式 Cron 和 <code>@every 30s</code></p></div>
+          <label class="field">Payload（JSON） <textarea id="task-payload" name="payload" rows="5" spellcheck="false">{"message":"hello"}</textarea></label>
+          <div class="field-row"><label class="field">处理器 <input id="task-handler" value="log" disabled /></label><label class="field">Worker 并发 <input id="task-concurrency" name="concurrency" type="number" min="1" max="10" value="1" /></label><label class="field">失败重试 <input id="task-retry" name="max_retry" type="number" min="0" max="20" value="3" /></label></div>
+          <p class="form-note">当前仅提供 <code>log</code> 处理器：执行时将 Payload 输出到服务日志。</p>
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions"><button type="button" class="button button-subtle" id="cancel-dialog">取消</button><button type="submit" class="button button-primary" id="save-task">创建任务</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="detail-dialog" class="dialog detail-dialog"><div class="dialog-head"><div><p class="eyebrow">TASK DETAILS</p><h2 id="detail-title">任务详情</h2></div><button type="button" class="icon-button" id="close-detail" aria-label="关闭">×</button></div><div class="dialog-body" id="detail-content"></div><div class="dialog-actions"><button type="button" class="button button-subtle" id="detail-done">关闭</button></div></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>
